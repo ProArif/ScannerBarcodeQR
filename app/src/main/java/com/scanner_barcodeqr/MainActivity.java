@@ -2,28 +2,34 @@ package com.scanner_barcodeqr;
 
 import android.Manifest;
 import android.content.DialogInterface;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
+import android.content.Intent;
+import android.net.Uri;
+
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.LifecycleOwner;
 
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.ml.vision.FirebaseVision;
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcode;
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetector;
 import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcodeDetectorOptions;
 import com.google.firebase.ml.vision.common.FirebaseVisionImage;
 import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata;
 import com.karumi.dexter.Dexter;
+import com.karumi.dexter.MultiplePermissionsReport;
 import com.karumi.dexter.PermissionToken;
 import com.karumi.dexter.listener.PermissionDeniedResponse;
 import com.karumi.dexter.listener.PermissionGrantedResponse;
 import com.karumi.dexter.listener.PermissionRequest;
+import com.karumi.dexter.listener.multi.MultiplePermissionsListener;
 import com.karumi.dexter.listener.single.PermissionListener;
 import com.otaliastudios.cameraview.CameraView;
 import com.otaliastudios.cameraview.frame.Frame;
@@ -47,23 +53,17 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         Dexter.withActivity(this).
-                withPermission(Manifest.permission.CAMERA)
-                .withListener(new PermissionListener() {
+                withPermissions(new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO})
+                .withListener(new MultiplePermissionsListener() {
                     @Override
-                    public void onPermissionGranted(PermissionGrantedResponse response) {
+                    public void onPermissionsChecked(MultiplePermissionsReport report) {
 
                         setUpCamera();
                     }
 
                     @Override
-                    public void onPermissionDenied(PermissionDeniedResponse response) {
+                    public void onPermissionRationaleShouldBeShown(List<PermissionRequest> permissions, PermissionToken token) {
 
-                        Toast.makeText(MainActivity.this,"You must accept the permission",Toast.LENGTH_LONG).show();
-
-                    }
-
-                    @Override
-                    public void onPermissionRationaleShouldBeShown(PermissionRequest permission, PermissionToken token) {
 
                     }
                 }).check();
@@ -84,9 +84,13 @@ public class MainActivity extends AppCompatActivity {
        cameraView.addFrameProcessor(new FrameProcessor() {
            @Override
            public void process(@NonNull Frame frame) {
-               processImg(getVisionImgFrame(frame))
+               processImg(getVisionImgFrame(frame));
            }
        });
+
+       barcodeDetectorOptions = new FirebaseVisionBarcodeDetectorOptions.Builder().setBarcodeFormats(FirebaseVisionBarcode.FORMAT_QR_CODE)
+               .build();
+       firebaseVisionBarcodeDetector = FirebaseVision.getInstance().getVisionBarcodeDetector(barcodeDetectorOptions);
     }
 
     private void processImg(FirebaseVisionImage visionImgFrame) {
@@ -113,21 +117,61 @@ public class MainActivity extends AppCompatActivity {
 
         if (firebaseVisionBarcodes.size() > 0){
             btnScanAgain.setEnabled(isDetected);
-
+//need to replace for loop..detects multiple times
         for (FirebaseVisionBarcode visionBarcode: firebaseVisionBarcodes){
             int value_type = visionBarcode.getValueType();
+
             switch (value_type){
                 case FirebaseVisionBarcode.TYPE_TEXT:
                 {
-                    showDiaog(visionBarcode.getRawValue());
+                    showDialog(visionBarcode.getRawValue());
                 }
+                break;
+
+                case FirebaseVisionBarcode.TYPE_URL:
+                {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(visionBarcode.getRawValue())));
+                }
+                break;
+
+                case FirebaseVisionBarcode.TYPE_CONTACT_INFO:
+                {
+
+                    String info = new StringBuilder("Name: ")
+                            .append(visionBarcode.getContactInfo().getName().getFormattedName())
+                            .append("\n")
+                            .append("Address: ")
+                            .append(visionBarcode.getContactInfo().getAddresses().get(0).getAddressLines()[0])
+                            .append("\n")
+                            .append("Email: ")
+                            .append(visionBarcode.getContactInfo().getEmails().get(0).getAddress())
+                            .append("\n")
+                            .append("Phone Number: ")
+                            .append(visionBarcode.getContactInfo().getPhones().get(0).getNumber())
+                            .toString();
+                    showDialog(info);
+                }
+                break;
+
+                case FirebaseVisionBarcode.TYPE_PRODUCT:
+                {
+                    String infoProduct = new StringBuilder("Name: ")
+                            .append(visionBarcode.getContactInfo().getTitle())
+                            .append(visionBarcode.getContactInfo().getOrganization())
+                            .toString();
+                    showDialog(infoProduct);
+                }
+                break;
+
+                default:
+                    break;
             }
 
         }
         }
     }
 
-    private void showDiaog(String rawValue) {
+    private void showDialog(String rawValue) {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setMessage(rawValue)
