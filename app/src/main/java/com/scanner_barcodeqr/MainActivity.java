@@ -171,6 +171,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+
     private void showDialog(String rawValue) {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
