@@ -119,6 +119,7 @@ public class MainActivity extends AppCompatActivity {
             btnScanAgain.setEnabled(isDetected);
 //need to replace for loop..detects multiple times
         for (FirebaseVisionBarcode visionBarcode: firebaseVisionBarcodes){
+
             int value_type = visionBarcode.getValueType();
 
             switch (value_type){
